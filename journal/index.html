@@ -60,8 +60,20 @@
   td.notes { white-space: normal; max-width: 280px; color: var(--muted); }
   td.pos { color: var(--good); }
   td.neg { color: var(--bad); }
-  td.row-actions { display: flex; gap: 6px; }
+  .row-actions, th.actions-col { position: sticky; right: 0; z-index: 1; background: var(--bg); box-shadow: inset 1px 0 0 var(--border); }
+  th.actions-col { background: var(--surface); z-index: 2; }
+  tbody tr:hover .row-actions { background: var(--surface); }
+  .row-actions-inner { display: flex; gap: 6px; }
   .empty { padding: 32px; text-align: center; color: var(--muted); }
+  .paste { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; max-width: 880px; margin-bottom: 16px; }
+  .paste textarea { width: 100%; min-height: 56px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .paste .actions { margin-top: 10px; }
+  details.more { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+  details.more summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 12px; width: max-content; }
+  details.more:not([open]) summary { margin-bottom: 0; }
+  tr.close-row td { background: var(--surface); }
+  .close-box { display: flex; gap: 8px; align-items: center; }
+  .close-box input { width: 340px; }
 </style>
 </head>
 <body>
@@ -76,34 +88,46 @@
 
 <main>
   <section id="view-log">
+    <div class="paste">
+      <label>Paste from Hale<textarea id="paste-box" placeholder="Paste Hale's whole call here. The JOURNAL: line fills the form."></textarea></label>
+      <div class="actions">
+        <button type="button" class="btn ghost small" id="paste-fill">Fill</button>
+        <span class="msg" id="paste-msg" role="status"></span>
+      </div>
+    </div>
     <form id="trade-form" autocomplete="off" novalidate>
       <p class="form-title" id="form-title">New trade</p>
       <div class="grid">
-        <label>Date (PHT)<input name="date_pht" placeholder="YYYY-MM-DD HH:MM" required></label>
         <label>Pair<input name="pair" list="pair-list" placeholder="BTCUSDT" required></label>
-        <label>Timeframe<input name="timeframe" placeholder="4H"></label>
         <label>Side<select name="side"><option value="long">long</option><option value="short">short</option></select></label>
-
-        <label>Market<select name="market"><option value="perps">perps</option><option value="spot">spot</option></select></label>
-        <label class="perps-only">Leverage<input name="leverage" inputmode="decimal"></label>
-        <label class="perps-only">Liquidation price<input name="liquidation_price" inputmode="decimal"></label>
-        <label class="perps-only">Fees + funding<input name="fees_funding" inputmode="decimal"></label>
-
-        <label class="wide">Setup<input name="setup" placeholder="sweep + reclaim"></label>
-        <label>Grade<select name="grade"><option value="">none</option><option value="A">A</option><option value="B">B</option><option value="C">C</option></select></label>
-        <label>Mode<select name="mode"><option value="paper">paper</option><option value="live">live</option></select></label>
-
         <label>Entry<input name="entry" inputmode="decimal" required></label>
         <label>Stop<input name="stop" inputmode="decimal" required></label>
-        <label>Targets<input name="targets" placeholder="TP1 / TP2"></label>
-        <label>Size<input name="size" inputmode="decimal"></label>
 
-        <label>Research<select name="research"><option value="no">no</option><option value="yes">yes</option></select></label>
-        <label>Result (R)<input name="result_r" inputmode="decimal" placeholder="empty if open"></label>
-        <label class="wide">Mistake tag<input name="mistake_tag" placeholder="none"></label>
+        <label class="wide">Targets<input name="targets" placeholder="TP1 / TP2"></label>
+        <label>Mode<select name="mode"><option value="paper">paper</option><option value="live">live</option></select></label>
 
         <label class="full">Notes<textarea name="notes"></textarea></label>
       </div>
+      <details class="more" id="more-fields">
+        <summary>More fields</summary>
+        <div class="grid">
+          <label>Date (PHT)<input name="date_pht" placeholder="YYYY-MM-DD HH:MM" required></label>
+          <label>Timeframe<input name="timeframe" placeholder="4H"></label>
+          <label>Market<select name="market"><option value="perps">perps</option><option value="spot">spot</option></select></label>
+          <label>Size<input name="size" inputmode="decimal"></label>
+
+          <label class="perps-only">Leverage<input name="leverage" inputmode="decimal"></label>
+          <label class="perps-only">Liquidation price<input name="liquidation_price" inputmode="decimal"></label>
+          <label class="perps-only">Fees + funding<input name="fees_funding" inputmode="decimal"></label>
+          <label>Research<select name="research"><option value="no">no</option><option value="yes">yes</option></select></label>
+
+          <label class="wide">Setup<input name="setup" placeholder="sweep + reclaim"></label>
+          <label>Grade<select name="grade"><option value="">none</option><option value="A">A</option><option value="B">B</option><option value="C">C</option></select></label>
+          <label>Result (R)<input name="result_r" inputmode="decimal" placeholder="empty if open"></label>
+
+          <label class="wide">Mistake tag<input name="mistake_tag" placeholder="none"></label>
+        </div>
+      </details>
       <div class="actions">
         <button type="submit" class="btn" id="submit-btn">Save trade</button>
         <button type="button" class="btn ghost hidden" id="cancel-btn">Cancel edit</button>
@@ -142,8 +166,17 @@ const NUMERIC_COLS = new Set(["leverage","liquidation_price","entry","stop","siz
 const TABLE_COLS = ["date_pht","pair","timeframe","side","market","mode","setup","grade","entry","stop","targets","size","leverage","result_r","mistake_tag","notes"];
 const GATE = 50;
 
+const LOWERCASE_ENUMS = new Set(["side","market","mode","research"]);
+const PLAIN_NUMBER_RE = /^-?\d+(\.\d+)?$/; // same rule as the server's NUMBER_RE
+const MAX_PASTE_CHARS = 200 * 1024;
+const R_VALUE_RE = /^([+-]?\d+(?:\.\d+)?)R?$/i;
+
 const form = document.getElementById("trade-form");
 const formMsg = document.getElementById("form-msg");
+const moreFields = document.getElementById("more-fields");
+const pasteBox = document.getElementById("paste-box");
+const pasteMsg = document.getElementById("paste-msg");
+const MORE_COLS = new Set([...moreFields.querySelectorAll("[name]")].map(node => node.name));
 let trades = [];
 let editing = null; // { index, original }
 let msgTimer = null;
@@ -204,6 +237,15 @@ function setTab(name) {
 function syncPerps() {
   const perps = form.elements.market.value === "perps";
   for (const node of form.querySelectorAll(".perps-only")) node.classList.toggle("hidden", !perps);
+  if (perps) return;
+  // Perps-only fields are hidden and not saved for spot, so a paste flag on them must not block saving.
+  for (const col of PERPS_ONLY) {
+    if (pasteFlagged.delete(col)) form.elements[col].removeAttribute("aria-invalid");
+  }
+  syncSubmitBlock();
+  if (!pasteFlagged.size && pasteMsg.classList.contains("err") && pasteMsg.textContent.includes("blocked")) {
+    showPasteMsg(`Flagged fields cleared for spot. ${submitHint()}`, "ok");
+  }
 }
 
 function readForm() {
@@ -218,8 +260,17 @@ function fillForm(row) {
   syncPerps();
 }
 
+// Fields a paste could not fill. Saving stays blocked until each one is edited by hand.
+const pasteFlagged = new Set();
+
+function syncSubmitBlock() {
+  document.getElementById("submit-btn").disabled = saving || pasteFlagged.size > 0;
+}
+
 function clearInvalid() {
   for (const node of form.querySelectorAll("[aria-invalid]")) node.removeAttribute("aria-invalid");
+  pasteFlagged.clear();
+  syncSubmitBlock();
 }
 
 function exitEditMode() {
@@ -238,8 +289,126 @@ function resetForm(keep) {
   form.elements.market.value = "perps";
   form.elements.research.value = "no";
   if (keep) { form.elements.pair.value = kept.pair; form.elements.timeframe.value = kept.timeframe; }
+  moreFields.open = false;
   exitEditMode();
   syncPerps();
+}
+
+function showPasteMsg(text, kind) {
+  pasteMsg.textContent = text;
+  pasteMsg.className = `msg ${kind}`;
+}
+
+function pasteTooLarge(text) {
+  return text.length > MAX_PASTE_CHARS || new TextEncoder().encode(text).length > MAX_PASTE_CHARS;
+}
+const TOO_LARGE_MSG = "That paste is over 200 KB. Paste just Hale's call (the part with the JOURNAL: or RESULT: line).";
+
+// Uses the last line that starts with `TAG:` (after leading whitespace, backticks, or > quote markers)
+// and parses what follows as JSON. Lines that merely mention the tag are ignored. Never evaluates the text.
+function parseTagged(text, tag) {
+  if (pasteTooLarge(text)) throw new Error(TOO_LARGE_MSG);
+  const marker = `${tag}:`;
+  const lines = text.split("\n");
+  let after = null;
+  for (let i = lines.length - 1; i >= 0 && after === null; i--) {
+    const line = lines[i].replace(/^[\s`>]+/, "");
+    if (line.startsWith(marker)) after = line.slice(marker.length);
+  }
+  if (after === null) throw new Error(`No ${tag}: line found. Paste the part of Hale's message that contains it.`);
+  const json = after.trim().replace(/^`+/, "").replace(/`+$/, "").trim();
+  if (!json.startsWith("{")) throw new Error(`The ${tag}: line has no {...} JSON object after it.`);
+  let obj;
+  try {
+    obj = JSON.parse(json);
+  } catch (err) {
+    throw new Error(`The ${tag}: line is not valid JSON (${err.message}).`);
+  }
+  if (obj === null || typeof obj !== "object" || Array.isArray(obj)) throw new Error(`The ${tag}: line must be a JSON object.`);
+  return obj;
+}
+
+function scalarText(key, value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  throw new Error(`${key} must be text or a number, got ${JSON.stringify(value)}.`);
+}
+
+function parseR(value) {
+  const m = R_VALUE_RE.exec(value.replace(/\s+/g, ""));
+  if (!m) throw new Error(`result_r "${value}" is not a number like 1.3 or -1.`);
+  return m[1].replace(/^\+/, "");
+}
+
+// Validates every known key before touching the form, so a bad paste leaves the form as it was.
+// Number fields that are not plain decimals are never rewritten: they are left out of `row` and reported in `bad`.
+function journalToRow(obj) {
+  const row = {};
+  const bad = [];
+  const spot = typeof obj.market === "string" && obj.market.trim().toLowerCase() === "spot";
+  for (const [key, raw] of Object.entries(obj)) {
+    if (!COLUMNS.includes(key)) continue;
+    let value = scalarText(key, raw);
+    if (NUMERIC_COLS.has(key) && value && !PLAIN_NUMBER_RE.test(value)) {
+      if (!(spot && PERPS_ONLY.includes(key))) bad.push({ key, value });
+      continue;
+    }
+    if (LOWERCASE_ENUMS.has(key)) value = value.toLowerCase();
+    if (key === "grade") value = value.toUpperCase();
+    const input = form.elements[key];
+    if (input.tagName === "SELECT" && ![...input.options].some(o => o.value === value)) {
+      const allowed = [...input.options].map(o => o.value || "empty").join(", ");
+      throw new Error(`${key} "${value}" must be one of: ${allowed}.`);
+    }
+    row[key] = value;
+  }
+  return { row, bad };
+}
+
+function fillFromPaste() {
+  let parsed;
+  try {
+    parsed = journalToRow(parseTagged(pasteBox.value, "JOURNAL"));
+  } catch (err) {
+    showPasteMsg(err.message, "err");
+    return;
+  }
+  if (editing) {
+    if (!confirm("Replace this trade's fields with the pasted call?")) {
+      showPasteMsg("Paste not applied. The trade you are editing is unchanged.", "err");
+      return;
+    }
+    clearInvalid();
+  } else {
+    resetForm(false);
+  }
+  formMsg.textContent = "";
+  for (const [key, value] of Object.entries(parsed.row)) {
+    if (key === "date_pht" && !value) continue;
+    form.elements[key].value = value;
+  }
+  for (const { key } of parsed.bad) {
+    form.elements[key].value = "";
+    form.elements[key].setAttribute("aria-invalid", "true");
+    pasteFlagged.add(key);
+  }
+  syncSubmitBlock();
+  syncPerps();
+  const bad = parsed.bad.filter(({ key }) => pasteFlagged.has(key)); // syncPerps drops perps-only flags for spot
+  const filledMore = Object.entries(parsed.row).some(([key, value]) => MORE_COLS.has(key) && key !== "date_pht" && value);
+  moreFields.open = Boolean(editing) || filledMore || bad.some(({ key }) => MORE_COLS.has(key));
+  const f = form.elements;
+  const market = f.market.value === "perps" ? " perps" : " spot";
+  const summary = `${f.pair.value.toUpperCase() || "(no pair)"} ${f.side.value}${market}, entry ${f.entry.value || "?"}, stop ${f.stop.value || "?"}.`;
+  if (bad.length) {
+    const list = bad.map(({ key, value }) => `${key} "${value}"`).join("; ");
+    showPasteMsg(`${summary} Not filled, not a plain decimal: ${list}. Saving is blocked until you type these by hand.`, "err");
+    form.elements[bad[0].key].focus();
+    return;
+  }
+  showPasteMsg(`${summary} ${submitHint()}`, "ok");
+  document.getElementById("submit-btn").focus();
 }
 
 function sameRow(a, b) {
@@ -266,6 +435,7 @@ function startEdit(item) {
   editing = { index: item.index, original: item.row };
   fillForm(item.row);
   clearInvalid();
+  moreFields.open = true;
   document.getElementById("form-title").textContent = `Editing trade from ${item.row.date_pht}`;
   document.getElementById("submit-btn").textContent = "Update trade";
   document.getElementById("cancel-btn").classList.remove("hidden");
@@ -273,16 +443,27 @@ function startEdit(item) {
   setTab("log");
 }
 
+function submitHint() {
+  return editing ? "Press Enter to update." : "Press Enter to save.";
+}
+
+// A user edit to a flagged field clears its flag; saving unblocks once none are left.
+function clearPasteFlag(e) {
+  if (!pasteFlagged.delete(e.target.name)) return;
+  e.target.removeAttribute("aria-invalid");
+  syncSubmitBlock();
+  if (!pasteFlagged.size) showPasteMsg(`Flagged fields filled. ${submitHint()}`, "ok");
+}
+
 async function submitForm() {
-  if (saving || Date.now() < cooldownUntil) return;
+  if (saving || Date.now() < cooldownUntil || pasteFlagged.size) return;
   saving = true;
-  const submitBtn = document.getElementById("submit-btn");
-  submitBtn.disabled = true;
+  syncSubmitBlock();
   try {
     await saveTrade();
   } finally {
     saving = false;
-    submitBtn.disabled = false;
+    syncSubmitBlock();
   }
 }
 
@@ -298,6 +479,7 @@ async function saveTrade() {
     }
   } catch (err) {
     if (err.field && form.elements[err.field]) {
+      if (MORE_COLS.has(err.field)) moreFields.open = true;
       form.elements[err.field].setAttribute("aria-invalid", "true");
       form.elements[err.field].focus();
     }
@@ -317,6 +499,8 @@ async function saveTrade() {
     setTab("trades");
   } else {
     resetForm(true);
+    pasteBox.value = "";
+    pasteMsg.textContent = "";
     showMsg(`Saved ${row.pair} ${row.side}`, "ok");
     form.elements.pair.focus();
   }
@@ -391,8 +575,83 @@ function renderTable() {
     edit.addEventListener("click", () => startEdit(item));
     const del = el("button", { type: "button", className: "btn danger small", textContent: "Delete" });
     del.addEventListener("click", () => deleteTrade(item));
-    return el("tr", {}, [...cells, el("td", { className: "row-actions" }, [edit, del])]);
+    const buttons = [edit, del];
+    const tr = el("tr", {}, cells);
+    if (item.row.result_r === "") {
+      const close = el("button", { type: "button", className: "btn small", textContent: "Close" });
+      close.addEventListener("click", () => openCloseBox(item, tr, close));
+      buttons.unshift(close);
+    }
+    tr.append(el("td", { className: "row-actions" }, [el("div", { className: "row-actions-inner" }, buttons)]));
+    return tr;
   }));
+}
+
+// Accepts a pasted RESULT: line, or a plain R value with an optional mistake tag ("-1 moved stop").
+function parseClose(text) {
+  const value = text.trim();
+  if (!value) throw new Error("Enter an R value like 1.3 or -1, or paste Hale's RESULT: line.");
+  if (/RESULT:/i.test(value)) {
+    const obj = parseTagged(value, "RESULT");
+    const r = scalarText("result_r", obj.result_r);
+    if (!r) throw new Error("The RESULT: line has no result_r.");
+    if (!PLAIN_NUMBER_RE.test(r)) throw new Error(`result_r "${r}" in the RESULT: line is not a plain decimal like 1.3 or -1.`);
+    const out = { result_r: r };
+    if ("mistake_tag" in obj) out.mistake_tag = scalarText("mistake_tag", obj.mistake_tag);
+    return out;
+  }
+  const m = /^(\S+)(?:\s+(.*))?$/s.exec(value);
+  const out = { result_r: parseR(m[1]) };
+  if (m[2] && m[2].trim()) out.mistake_tag = m[2].trim();
+  return out;
+}
+
+function openCloseBox(item, tr, closeBtn) {
+  document.querySelector("tr.close-row")?.remove();
+  document.getElementById("load-msg").textContent = "";
+  const input = el("input", { placeholder: "RESULT: {...} line, or 1.3 / -1 moved stop" });
+  input.setAttribute("aria-label", `Result for ${item.row.pair} ${item.row.side} ${item.row.date_pht}`);
+  const save = el("button", { type: "button", className: "btn small", textContent: "Save result" });
+  const cancel = el("button", { type: "button", className: "btn ghost small", textContent: "Cancel" });
+  const msg = el("span", { className: "msg" });
+  msg.setAttribute("role", "status");
+  const row = el("tr", { className: "close-row" }, [
+    el("td", { colSpan: TABLE_COLS.length + 1 }, [el("div", { className: "close-box" }, [input, save, cancel, msg])]),
+  ]);
+  const dismiss = () => { row.remove(); closeBtn.focus(); };
+  const submit = async () => {
+    if (save.disabled) return;
+    let parsed;
+    try {
+      parsed = parseClose(input.value);
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = "msg err";
+      return;
+    }
+    save.disabled = true;
+    try {
+      await api("PUT", `/api/trades/${item.index}`, { original: item.row, row: { ...item.row, ...parsed } });
+    } catch (err) {
+      save.disabled = false;
+      msg.textContent = err.message;
+      msg.className = "msg err";
+      if (err.status === 409) {
+        await loadTrades();
+        document.getElementById("load-msg").textContent = "That trade changed since the list loaded. The list was reloaded; press Close again.";
+      }
+      return;
+    }
+    await loadTrades();
+  };
+  save.addEventListener("click", submit);
+  cancel.addEventListener("click", dismiss);
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); submit(); }
+    if (e.key === "Escape") { e.stopPropagation(); dismiss(); }
+  });
+  tr.after(row);
+  input.focus();
 }
 
 function renderPairs() {
@@ -416,13 +675,27 @@ async function loadTrades() {
 }
 
 document.getElementById("thead-row").replaceChildren(
-  ...TABLE_COLS.map(c => el("th", { textContent: c })), el("th", { textContent: "" }));
+  ...TABLE_COLS.map(c => el("th", { textContent: c })), el("th", { className: "actions-col", textContent: "" }));
 document.getElementById("tab-log").addEventListener("click", () => setTab("log"));
 document.getElementById("tab-trades").addEventListener("click", () => setTab("trades"));
 document.getElementById("cancel-btn").addEventListener("click", () => { resetForm(false); formMsg.textContent = ""; });
 document.getElementById("filter-text").addEventListener("input", renderTable);
 document.getElementById("filter-mode").addEventListener("change", renderTable);
 form.elements.market.addEventListener("change", syncPerps);
+form.addEventListener("input", clearPasteFlag);
+document.getElementById("paste-fill").addEventListener("click", fillFromPaste);
+pasteBox.addEventListener("paste", e => {
+  const text = e.clipboardData && e.clipboardData.getData("text");
+  if (!text) return;
+  if (pasteTooLarge(text)) { e.preventDefault(); showPasteMsg(TOO_LARGE_MSG, "err"); return; }
+  if (pasteBox.value.trim()) return; // box already has text: normal paste, wait for Fill
+  e.preventDefault();
+  pasteBox.value = text;
+  fillFromPaste();
+});
+pasteBox.addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); fillFromPaste(); }
+});
 form.addEventListener("submit", e => { e.preventDefault(); submitForm(); });
 form.elements.notes.addEventListener("keydown", e => {
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitForm(); }

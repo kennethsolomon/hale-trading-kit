@@ -146,7 +146,7 @@ def coerce_text(field, value):
     return value
 
 
-def validate_row(payload, name="row"):
+def validate_row(payload, name="row", require_prices=True):
     if not isinstance(payload, dict):
         raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "invalid_body", f"'{name}' must be an object", name)
     unknown = sorted(set(payload) - set(COLUMNS))
@@ -174,7 +174,7 @@ def validate_row(payload, name="row"):
     if not row["pair"]:
         raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "invalid_field", "pair is required", "pair")
     for col in ("entry", "stop"):
-        if not row[col]:
+        if require_prices and not row[col]:
             raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "invalid_field", f"{col} is required", col)
     row["pair"] = row["pair"].upper()
 
@@ -318,7 +318,11 @@ class Handler(BaseHTTPRequestHandler):
             if method == "PUT":
                 payload = self.read_json()
                 original = original_row(payload)
-                row = validate_row(payload.get("row"))
+                # Entry and stop may stay empty on update only if the original row had them empty (legacy rows can still be closed).
+                row = validate_row(payload.get("row"), require_prices=False)
+                for col in ("entry", "stop"):
+                    if not row[col] and original[col].strip():
+                        raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "invalid_field", f"{col} is required (it cannot be cleared once set)", col)
                 with WRITE_LOCK:
                     rows = read_rows()
                     check_unchanged(rows, index, original)
