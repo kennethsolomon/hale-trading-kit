@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">Hale mark</title>
+  <g id="symbol">
+    <path fill="#2F5D7C" d="M40 28 L112 28 L112 222 L40 172 Z M144 28 L216 28 L216 172 L144 222 Z M40 112 L216 112 L216 144 L40 144 Z"/>
+  </g>
+</svg>

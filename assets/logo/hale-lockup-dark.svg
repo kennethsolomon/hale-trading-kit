@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 598 256" width="598" height="256" role="img" aria-labelledby="title">
+  <title id="title">Hale</title>
+  <g id="symbol">
+    <path fill="#8DB3CF" d="M40 28 L112 28 L112 222 L40 172 Z M144 28 L216 28 L216 172 L144 222 Z M40 112 L216 112 L216 144 L40 144 Z"/>
+  </g>
+  <g id="wordmark">
+    <path fill="#E6EDF3" d="M284 78 H300 V178 H284 Z M340 78 H356 V178 H340 Z M284 120 H356 V136 H284 Z M430 106 H446 V178 H430 Z M464 78 H480 V178 H464 Z M512 134 H571 V150 H512 Z"/>
+    <path fill="#E6EDF3" fill-rule="evenodd" d="M373 142 A37 37 0 1 1 447 142 A37 37 0 1 1 373 142 Z M389 142 A21 21 0 1 0 431 142 A21 21 0 1 0 389 142 Z"/>
+    <path fill="#E6EDF3" d="M562.34 165.78 A37 37 0 1 1 571 142 L555 142 A21 21 0 1 0 550.09 155.5 Z"/>
+  </g>
+</svg>

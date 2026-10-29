@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trade Journal</title>
+<style>
+  :root {
+    --bg: hsl(220 14% 8%);
+    --surface: hsl(220 13% 12%);
+    --surface-2: hsl(220 12% 16%);
+    --border: hsl(220 10% 22%);
+    --text: hsl(220 14% 90%);
+    --muted: hsl(220 8% 62%);
+    --accent: hsl(212 90% 62%);
+    --good: hsl(145 55% 55%);
+    --bad: hsl(0 70% 64%);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 24px; padding: 12px 24px; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 2; }
+  h1 { font-size: 15px; font-weight: 600; margin: 0; }
+  nav { display: flex; gap: 4px; }
+  nav button { background: none; border: 0; color: var(--muted); padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+  nav button[aria-selected="true"] { color: var(--text); background: var(--surface-2); }
+  main { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  .hidden { display: none !important; }
+  form { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; max-width: 880px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px 16px; }
+  .wide { grid-column: span 2; }
+  .full { grid-column: 1 / -1; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  input, select, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 14px; }
+  textarea { min-height: 72px; resize: vertical; }
+  input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--bad); }
+  .actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  .btn { background: var(--accent); color: hsl(220 30% 8%); border: 0; border-radius: 6px; padding: 8px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: 0.55; cursor: progress; }
+  .btn.ghost { background: var(--surface-2); color: var(--text); font-weight: 500; }
+  .btn.small { padding: 4px 10px; font-size: 12px; }
+  .btn.danger { background: none; color: var(--bad); border: 1px solid var(--border); }
+  .hint { color: var(--muted); font-size: 12px; }
+  .msg { font-size: 13px; }
+  .msg.ok { color: var(--good); }
+  .msg.err { color: var(--bad); }
+  .form-title { margin: 0 0 16px; font-size: 14px; font-weight: 600; }
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; min-width: 130px; }
+  .stat .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+  .toolbar input { width: 260px; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { background: var(--surface); color: var(--muted); font-weight: 500; font-size: 12px; position: sticky; top: 0; }
+  tbody tr:hover { background: var(--surface); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.notes { white-space: normal; max-width: 280px; color: var(--muted); }
+  td.pos { color: var(--good); }
+  td.neg { color: var(--bad); }
+  td.row-actions { display: flex; gap: 6px; }
+  .empty { padding: 32px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Trade Journal</h1>
+  <nav role="tablist">
+    <button type="button" role="tab" id="tab-log" aria-selected="true">Log</button>
+    <button type="button" role="tab" id="tab-trades" aria-selected="false">Trades</button>
+  </nav>
+  <span class="hint" id="load-msg"></span>
+</header>
+
+<main>
+  <section id="view-log">
+    <form id="trade-form" autocomplete="off" novalidate>
+      <p class="form-title" id="form-title">New trade</p>
+      <div class="grid">
+        <label>Date (PHT)<input name="date_pht" placeholder="YYYY-MM-DD HH:MM" required></label>
+        <label>Pair<input name="pair" list="pair-list" placeholder="BTCUSDT" required></label>
+        <label>Timeframe<input name="timeframe" placeholder="4H"></label>
+        <label>Side<select name="side"><option value="long">long</option><option value="short">short</option></select></label>
+
+        <label>Market<select name="market"><option value="perps">perps</option><option value="spot">spot</option></select></label>
+        <label class="perps-only">Leverage<input name="leverage" inputmode="decimal"></label>
+        <label class="perps-only">Liquidation price<input name="liquidation_price" inputmode="decimal"></label>
+        <label class="perps-only">Fees + funding<input name="fees_funding" inputmode="decimal"></label>
+
+        <label class="wide">Setup<input name="setup" placeholder="sweep + reclaim"></label>
+        <label>Grade<select name="grade"><option value="">none</option><option value="A">A</option><option value="B">B</option><option value="C">C</option></select></label>
+        <label>Mode<select name="mode"><option value="paper">paper</option><option value="live">live</option></select></label>
+
+        <label>Entry<input name="entry" inputmode="decimal" required></label>
+        <label>Stop<input name="stop" inputmode="decimal" required></label>
+        <label>Targets<input name="targets" placeholder="TP1 / TP2"></label>
+        <label>Size<input name="size" inputmode="decimal"></label>
+
+        <label>Research<select name="research"><option value="no">no</option><option value="yes">yes</option></select></label>
+        <label>Result (R)<input name="result_r" inputmode="decimal" placeholder="empty if open"></label>
+        <label class="wide">Mistake tag<input name="mistake_tag" placeholder="none"></label>
+
+        <label class="full">Notes<textarea name="notes"></textarea></label>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn" id="submit-btn">Save trade</button>
+        <button type="button" class="btn ghost hidden" id="cancel-btn">Cancel edit</button>
+        <span class="msg" id="form-msg" role="status"></span>
+        <span class="hint" style="margin-left:auto">Enter to save (Cmd/Ctrl+Enter in notes)</span>
+      </div>
+    </form>
+    <datalist id="pair-list"></datalist>
+  </section>
+
+  <section id="view-trades" class="hidden">
+    <div class="stats" id="stats"></div>
+    <div class="toolbar">
+      <input type="search" id="filter-text" placeholder="Filter by pair or setup">
+      <select id="filter-mode">
+        <option value="">all modes</option>
+        <option value="paper">paper</option>
+        <option value="live">live</option>
+      </select>
+      <span class="hint">Stats follow the filter. Open trades (no result) are excluded.</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="thead-row"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const COLUMNS = ["date_pht","pair","timeframe","side","market","leverage","liquidation_price","setup","grade","entry","stop","targets","size","fees_funding","mode","research","result_r","notes","mistake_tag"];
+const PERPS_ONLY = ["leverage","liquidation_price","fees_funding"];
+const NUMERIC_COLS = new Set(["leverage","liquidation_price","entry","stop","size","fees_funding","result_r"]);
+const TABLE_COLS = ["date_pht","pair","timeframe","side","market","mode","setup","grade","entry","stop","targets","size","leverage","result_r","mistake_tag","notes"];
+const GATE = 50;
+
+const form = document.getElementById("trade-form");
+const formMsg = document.getElementById("form-msg");
+let trades = [];
+let editing = null; // { index, original }
+let msgTimer = null;
+let saving = false;
+let cooldownUntil = 0; // swallow a stray second Enter right after a successful save
+const SAVE_COOLDOWN_MS = 1000;
+const LOST_EDIT_MSG = "This trade was changed or deleted. Your edits are still in the form; save as new or cancel.";
+
+function el(tag, props, children) {
+  const node = document.createElement(tag);
+  if (props) Object.assign(node, props);
+  for (const child of children || []) node.append(child);
+  return node;
+}
+
+function nowManila() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date());
+  const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: {} };
+  if (body !== undefined) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, opts);
+  const data = await res.json();
+  if (!res.ok) {
+    const err = new Error(data.detail || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.field = data.field;
+    throw err;
+  }
+  return data;
+}
+
+function showMsg(text, kind) {
+  formMsg.textContent = text;
+  formMsg.className = `msg ${kind}`;
+  clearTimeout(msgTimer);
+  if (kind === "ok") msgTimer = setTimeout(() => { formMsg.textContent = ""; }, 2500);
+}
+
+function setTab(name) {
+  const isLog = name === "log";
+  document.getElementById("view-log").classList.toggle("hidden", !isLog);
+  document.getElementById("view-trades").classList.toggle("hidden", isLog);
+  document.getElementById("tab-log").setAttribute("aria-selected", String(isLog));
+  document.getElementById("tab-trades").setAttribute("aria-selected", String(!isLog));
+  if (isLog) form.elements.pair.focus();
+}
+
+function syncPerps() {
+  const perps = form.elements.market.value === "perps";
+  for (const node of form.querySelectorAll(".perps-only")) node.classList.toggle("hidden", !perps);
+}
+
+function readForm() {
+  const row = {};
+  for (const col of COLUMNS) row[col] = form.elements[col].value.trim();
+  if (row.market !== "perps") for (const col of PERPS_ONLY) row[col] = "";
+  return row;
+}
+
+function fillForm(row) {
+  for (const col of COLUMNS) form.elements[col].value = row[col] ?? "";
+  syncPerps();
+}
+
+function clearInvalid() {
+  for (const node of form.querySelectorAll("[aria-invalid]")) node.removeAttribute("aria-invalid");
+}
+
+function exitEditMode() {
+  editing = null;
+  document.getElementById("form-title").textContent = "New trade";
+  document.getElementById("submit-btn").textContent = "Save trade";
+  document.getElementById("cancel-btn").classList.add("hidden");
+}
+
+function resetForm(keep) {
+  const kept = keep ? { pair: form.elements.pair.value, timeframe: form.elements.timeframe.value } : {};
+  form.reset();
+  clearInvalid();
+  form.elements.date_pht.value = nowManila();
+  form.elements.mode.value = "paper";
+  form.elements.market.value = "perps";
+  form.elements.research.value = "no";
+  if (keep) { form.elements.pair.value = kept.pair; form.elements.timeframe.value = kept.timeframe; }
+  exitEditMode();
+  syncPerps();
+}
+
+function sameRow(a, b) {
+  return COLUMNS.every(col => (a[col] ?? "") === (b[col] ?? ""));
+}
+
+// After the list reloads, point the edit at the row's current index, or drop edit mode if it is gone.
+function relocateEdit() {
+  if (!editing) return;
+  const oldIndex = editing.index;
+  // Identical rows are indistinguishable; prefer the content match nearest the old position.
+  const match = trades
+    .filter(t => sameRow(t.row, editing.original))
+    .sort((a, b) => Math.abs(a.index - oldIndex) - Math.abs(b.index - oldIndex))[0];
+  if (match) {
+    editing.index = match.index;
+    return;
+  }
+  exitEditMode();
+  showMsg(LOST_EDIT_MSG, "err");
+}
+
+function startEdit(item) {
+  editing = { index: item.index, original: item.row };
+  fillForm(item.row);
+  clearInvalid();
+  document.getElementById("form-title").textContent = `Editing trade from ${item.row.date_pht}`;
+  document.getElementById("submit-btn").textContent = "Update trade";
+  document.getElementById("cancel-btn").classList.remove("hidden");
+  formMsg.textContent = "";
+  setTab("log");
+}
+
+async function submitForm() {
+  if (saving || Date.now() < cooldownUntil) return;
+  saving = true;
+  const submitBtn = document.getElementById("submit-btn");
+  submitBtn.disabled = true;
+  try {
+    await saveTrade();
+  } finally {
+    saving = false;
+    submitBtn.disabled = false;
+  }
+}
+
+async function saveTrade() {
+  clearInvalid();
+  const row = readForm();
+  const wasEditing = editing;
+  try {
+    if (wasEditing) {
+      await api("PUT", `/api/trades/${wasEditing.index}`, { original: wasEditing.original, row });
+    } else {
+      await api("POST", "/api/trades", { row });
+    }
+  } catch (err) {
+    if (err.field && form.elements[err.field]) {
+      form.elements[err.field].setAttribute("aria-invalid", "true");
+      form.elements[err.field].focus();
+    }
+    showMsg(err.message, "err");
+    if (err.status === 409) {
+      await loadTrades();
+      if (editing) showMsg("The list changed since you opened this trade. It was found again; press Update trade to save.", "err");
+    }
+    return;
+  }
+  cooldownUntil = Date.now() + SAVE_COOLDOWN_MS;
+  if (wasEditing) editing = null;
+  await loadTrades();
+  if (wasEditing) {
+    resetForm(false);
+    showMsg("Trade updated", "ok");
+    setTab("trades");
+  } else {
+    resetForm(true);
+    showMsg(`Saved ${row.pair} ${row.side}`, "ok");
+    form.elements.pair.focus();
+  }
+}
+
+async function deleteTrade(item) {
+  const label = `${item.row.date_pht} ${item.row.pair} ${item.row.side}`;
+  if (!confirm(`Delete trade ${label}? This cannot be undone.`)) return;
+  try {
+    await api("DELETE", `/api/trades/${item.index}`, { original: item.row });
+    if (editing && sameRow(editing.original, item.row)) resetForm(false);
+  } catch (err) {
+    alert(`Delete failed: ${err.message}`);
+  }
+  await loadTrades();
+}
+
+function filteredTrades() {
+  const text = document.getElementById("filter-text").value.trim().toLowerCase();
+  const mode = document.getElementById("filter-mode").value;
+  return trades
+    .filter(t => !mode || t.row.mode === mode)
+    .filter(t => !text || t.row.pair.toLowerCase().includes(text) || t.row.setup.toLowerCase().includes(text))
+    .sort((a, b) => b.row.date_pht.localeCompare(a.row.date_pht) || b.index - a.index);
+}
+
+function closedR(items) {
+  return items.map(t => t.row.result_r).filter(v => v !== "" && Number.isFinite(Number(v))).map(Number);
+}
+
+function fmt(n, digits) { return Number.isFinite(n) ? n.toFixed(digits) : "-"; }
+
+function renderStats(items) {
+  const rs = closedR(items);
+  const wins = rs.filter(r => r > 0).length;
+  const decided = wins + rs.filter(r => r < 0).length;
+  const winRate = decided ? wins / decided : NaN;
+  const totalR = rs.reduce((a, b) => a + b, 0);
+  const avgR = rs.length ? totalR / rs.length : NaN;
+  const gate = trades.filter(t => t.row.mode === "paper" && t.row.result_r !== "").length;
+  const stats = [
+    ["Trades", String(items.length)],
+    ["Paper gate", `${gate} / ${GATE}`],
+    ["Win rate", decided ? `${fmt(winRate * 100, 0)}%` : "-"],
+    ["Avg R", fmt(avgR, 2)],
+    ["Total R", rs.length ? fmt(totalR, 2) : "-"],
+  ];
+  document.getElementById("stats").replaceChildren(...stats.map(([k, v]) =>
+    el("div", { className: "stat" }, [el("div", { className: "v", textContent: v }), el("div", { className: "k", textContent: k })])));
+}
+
+function renderTable() {
+  const items = filteredTrades();
+  renderStats(items);
+  const tbody = document.getElementById("tbody");
+  if (!items.length) {
+    const msg = trades.length ? "No trades match the filter." : "No trades yet. Log one in the Log tab.";
+    tbody.replaceChildren(el("tr", {}, [el("td", { className: "empty", colSpan: TABLE_COLS.length + 1, textContent: msg })]));
+    return;
+  }
+  tbody.replaceChildren(...items.map(item => {
+    const cells = TABLE_COLS.map(col => {
+      const value = item.row[col];
+      const td = el("td", { textContent: value });
+      if (NUMERIC_COLS.has(col)) td.classList.add("num");
+      if (col === "notes") td.classList.add("notes");
+      if (col === "result_r" && Number(value) > 0) td.classList.add("pos");
+      if (col === "result_r" && Number(value) < 0) td.classList.add("neg");
+      return td;
+    });
+    const edit = el("button", { type: "button", className: "btn ghost small", textContent: "Edit" });
+    edit.addEventListener("click", () => startEdit(item));
+    const del = el("button", { type: "button", className: "btn danger small", textContent: "Delete" });
+    del.addEventListener("click", () => deleteTrade(item));
+    return el("tr", {}, [...cells, el("td", { className: "row-actions" }, [edit, del])]);
+  }));
+}
+
+function renderPairs() {
+  const pairs = [...new Set(trades.map(t => t.row.pair).filter(Boolean))].sort();
+  document.getElementById("pair-list").replaceChildren(...pairs.map(p => el("option", { value: p })));
+}
+
+async function loadTrades() {
+  const loadMsg = document.getElementById("load-msg");
+  try {
+    const res = await api("GET", "/api/trades");
+    trades = res.data;
+    loadMsg.textContent = "";
+    relocateEdit();
+  } catch (err) {
+    loadMsg.textContent = `Could not load trades: ${err.message}`;
+    return;
+  }
+  renderPairs();
+  renderTable();
+}
+
+document.getElementById("thead-row").replaceChildren(
+  ...TABLE_COLS.map(c => el("th", { textContent: c })), el("th", { textContent: "" }));
+document.getElementById("tab-log").addEventListener("click", () => setTab("log"));
+document.getElementById("tab-trades").addEventListener("click", () => setTab("trades"));
+document.getElementById("cancel-btn").addEventListener("click", () => { resetForm(false); formMsg.textContent = ""; });
+document.getElementById("filter-text").addEventListener("input", renderTable);
+document.getElementById("filter-mode").addEventListener("change", renderTable);
+form.elements.market.addEventListener("change", syncPerps);
+form.addEventListener("submit", e => { e.preventDefault(); submitForm(); });
+form.elements.notes.addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitForm(); }
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && editing) { resetForm(false); formMsg.textContent = ""; }
+});
+
+resetForm(false);
+loadTrades();
+</script>
+</body>
+</html>

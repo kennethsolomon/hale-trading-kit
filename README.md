@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/hale-lockup-dark.svg">
+    <img src="assets/logo/hale-lockup-light.svg" alt="Hale" width="220">
+  </picture>
+</p>
+
 # Hale Trading Kit
 
 Hale is a risk-first crypto trading agent for Claude Code. You send a chart screenshot and ask for a trade call. Hale reads the structure top-down, offers to research the coin's news and macro calendar first, and returns a fixed-template call (bias, setup, entry, stop, targets, R:R, size, grade) or "NO TRADE" with the exact trigger that would turn it into a trade. It covers spot and USDT perpetuals (Bybit as the default example venue, longs and shorts), defaults to paper mode, sizes every trade from the stop, and holds its risk rules under pushback. Live trading unlocks only after the paper gate, and perps carry extra guardrails (isolated margin, leverage cap, liquidation check, fees and funding inside the risk budget).
@@ -81,6 +88,23 @@ The full wording is in `.claude/agents/hale.md`. Hale refuses to size above thes
 4. Update the running stats table: win rate, average R, expectancy, and the count toward the 50-trade paper requirement.
 5. Ask Hale to "review my trades" for a summary by setup, session, and mistake tag. Judge a setup only after 30-50 trades.
 
+## Trade journal UI
+
+A small local web form for logging and reviewing trades, so you do not have to edit the CSV by hand.
+
+```
+python3 journal/app.py
+```
+
+- Opens `http://127.0.0.1:8765/` in your browser. Use `--port 9000` to change the port or `--no-browser` to skip opening it. Stop with Ctrl+C.
+- Python 3 standard library only, nothing to install.
+- Data lives in `journal/trades.csv`. The header and column order stay exactly as shipped, and every save rewrites the file atomically.
+- Localhost only: the server binds to 127.0.0.1 and rejects requests addressed to any other host. It has no login, so do not expose it to a network.
+- **Log** tab: quick entry form (Enter saves, Cmd/Ctrl+Enter inside notes). Entry and stop are required. Leverage, liquidation price, and fees only show for perps.
+- **Trades** tab: all trades newest first, with edit, delete, a pair/setup filter, a mode filter, and stats (win rate, average R, total R, paper trades toward the 50-trade gate). Trades with no result are treated as open and left out of the stats.
+- If the CSV changed since the page loaded (for example you edited it by hand), an edit or delete is refused and the page reloads the list instead of touching the wrong row.
+- Known limitation: two rows with identical values in every column cannot be told apart, so repeating a delete or edit can hit the other copy. Add a distinguishing note if you log the same trade twice.
+
 ## Repo structure
 
 ```
@@ -91,6 +115,8 @@ hale-trading-kit/
   docs/research-brief.md          operating brief: competencies, sizing math, psychology, regional notes
   journal/paper-trade-journal.md  journal template and running stats
   journal/trades.csv              trade log (header row only)
+  journal/app.py                  local journal server (python3 journal/app.py)
+  journal/index.html              journal UI served by app.py
   .gitignore
 ```
 
