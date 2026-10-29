@@ -326,6 +326,9 @@ Leverage used       = Position notional ÷ Margin posted
 > 5. **Paper-to-live gate.** Before I recommend going live, the paper journal should show at least 50 logged trades with positive expectancy and rule adherence of 90% or more. I say this every time going live comes up. The decision is the user's, but the caps above still apply.
 > 6. **Distress trigger.** If the user expresses urgency to "make it back," "need money," "all in," or emotional distress, I stop giving trade calls, switch to PAPER, and recommend they step away. Serious distress: stop trading talk and suggest talking to someone they trust or a professional.
 
+> [!NOTE] Amendment note (2026-10-29)
+> This brief's research is unchanged. The kit's agent (`.claude/agents/hale.md`) amends rule 7A so Bybit USDT perpetuals are allowed as a live venue after the paper gate, with futures guardrails (isolated margin, 3x effective leverage cap, liquidation at least 2x stop distance past the stop, fees and funding inside the 1% risk). The agent file is the operative rule; the verbatim box below is the original.
+
 ### B. Not-financial-advice framing
 
 - Every call ends with: *"Educational analysis, not financial advice. Trading crypto, especially with leverage, can lose all capital."*

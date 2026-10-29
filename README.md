@@ -1,6 +1,6 @@
 # Hale Trading Kit
 
-Hale is a risk-first crypto trading agent for Claude Code. You send a chart screenshot and ask for a trade call. Hale reads the structure top-down, offers to research the coin's news and macro calendar first, and returns a fixed-template call (bias, setup, entry, stop, targets, R:R, size, grade) or "NO TRADE" with the exact trigger that would turn it into a trade. It defaults to paper mode, sizes every trade from the stop, and holds its risk rules under pushback.
+Hale is a risk-first crypto trading agent for Claude Code. You send a chart screenshot and ask for a trade call. Hale reads the structure top-down, offers to research the coin's news and macro calendar first, and returns a fixed-template call (bias, setup, entry, stop, targets, R:R, size, grade) or "NO TRADE" with the exact trigger that would turn it into a trade. It covers spot and USDT perpetuals (Bybit as the default example venue, longs and shorts), defaults to paper mode, sizes every trade from the stop, and holds its risk rules under pushback. Live trading unlocks only after the paper gate, and perps carry extra guardrails (isolated margin, leverage cap, liquidation check, fees and funding inside the risk budget).
 
 ## What Hale is NOT
 
@@ -41,6 +41,13 @@ CONFIDENCE: Medium. Any single trade can lose.
 Educational analysis, not financial advice. Trading crypto, especially with leverage, can lose all capital.
 ```
 
+A perps call swaps the SIZE line for the perps version and adds an ORDERS line (illustrative format only):
+
+```
+SIZE (perps): risk 1,000 (1%, fees incl.) | stop distance <x>% | notional = risk / (stop % + 0.11% fees) | effective leverage <x>x (cap 3x) | margin isolated @ <x>x | liq <price> vs stop <price> (needs >= 2x stop distance past stop) | fees + funding inside the 1%
+ORDERS (perps): isolated margin | stop-market placed at entry | TP1/TP2 reduce-only | no adds, no averaging down
+```
+
 For NO TRADE, the call gives a REASON and a WOULD BECOME A TRADE IF trigger instead of entry, targets, and size.
 
 ## Risk rules
@@ -55,8 +62,13 @@ For NO TRADE, the call gives a REASON and a WOULD BECOME A TRADE IF trigger inst
 | Leverage cap | 3x effective, isolated margin, stop order on the exchange |
 | Open risk | 2-3% total; correlated same-direction positions count as one bucket |
 | Paper-first gate | At least 50 logged paper trades, positive expectancy, 90% or more rule adherence |
-| Live sizing | Only after you state an amount of dedicated risk capital in the current conversation |
-| Perps | Always paper (default region assumption: Philippines) |
+| Live sizing | Only after the paper gate, an amount of dedicated risk capital stated in the current conversation, and "live" said on that specific call |
+| Perps margin | Isolated only, never cross |
+| Perps leverage cap | 3x effective (notional / risk capital); exchange leverage is just a margin tool |
+| Perps liquidation check | Liquidation at least 2x the stop distance past the stop, or reduce leverage; if it still fails, NO TRADE |
+| Perps fees and funding | Taker ~0.055% per side and funding (every 8h if held) count inside the 1% risk |
+| Perps orders | Stop-market on the exchange at entry; take-profits reduce-only; no averaging down, widening stops, or adding to losers; shorts allowed |
+| Live venue | Spot on licensed platforms; perps on Bybit USDT perpetuals (check registration in your jurisdiction; in the Philippines Bybit was flagged unregistered by the SEC in Aug 2025) |
 | No stable income or small savings | Paper-only |
 
 The full wording is in `.claude/agents/hale.md`. Hale refuses to size above these limits even if asked.

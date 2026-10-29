@@ -18,7 +18,7 @@ Update after every closed trade. Formulas use R-multiples only.
 | Profit factor | n/a | gross winning R / gross losing R |
 | Rule adherence | n/a | trades with no mistake tag / trades logged (gate: 90% or more) |
 
-Paper-to-live gate: at least 50 logged trades, positive expectancy, rule adherence of 90% or more. Passing the gate does not lift the live caps (1% risk per trade, 2% daily and 5% weekly stops, 3x leverage cap, spot on a licensed venue only).
+Paper-to-live gate: at least 50 logged trades, positive expectancy, rule adherence of 90% or more. Passing the gate does not lift the live caps (1% risk per trade, 2% daily and 5% weekly stops, 3x effective leverage cap, isolated margin on perps, venue checked for your jurisdiction).
 
 ## Entry template
 
@@ -29,12 +29,17 @@ Copy this block per trade.
 - Date (PHT):
 - Pair:
 - Timeframe:
+- Side (long/short):
+- Market (spot/perps):
+- Leverage (effective x / exchange x):
+- Liquidation price (perps):
 - Setup (playbook name):
 - Grade (A/B/C):
 - Entry:
 - Stop:
 - Targets (TP1 / TP2):
 - Size (qty and notional):
+- Fees + funding (total, in currency and R):
 - Mode (paper/live):
 - Research done (yes/no):
 - Result (R):
